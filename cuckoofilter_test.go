@@ -3,20 +3,12 @@ package cuckoo
 import (
 	"bufio"
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
-
-// optFloatNear considers float64 as equal if the relative delta is small.
-var optFloatNear = cmp.Comparer(func(x, y float64) bool {
-	delta := math.Abs(x - y)
-	mean := math.Abs(x+y) / 2.0
-	return delta/mean < 0.00001
-})
 
 func TestInsertion(t *testing.T) {
 	cf := NewFilter(1000000)
@@ -255,5 +247,45 @@ func TestEncodeDecode(t *testing.T) {
 	}
 	if !cmp.Equal(cf, got, cmp.AllowUnexported(Filter{})) {
 		t.Errorf("Decode = %v, want %v, encoded = %v", got, cf, encoded)
+	}
+}
+
+func TestFilter_randi(t *testing.T) {
+	cf := NewFilter(8)
+	yes := 0
+	for i := 0; i < 1000000; i++ {
+		if cf.Coinflip(0, 1) == 1 {
+			yes++
+		}
+	}
+	if yes < 499000 || yes > 501000 {
+		t.Errorf("yes: %d, expected 500000", yes)
+	}
+}
+
+func TestFilter_Intn(t *testing.T) {
+	const tries = 1_000_000
+	for _, n := range []int{10, 100, 1000} {
+		t.Run(fmt.Sprintf("n=%d", n), func(t *testing.T) {
+			cf := NewFilter(8)
+			yes := 0
+			buckets := make([]int, n)
+			for i := 0; i < tries; i++ {
+				x := cf.Intn(n)
+				buckets[x]++
+				if x == 0 {
+					yes++
+				}
+			}
+			// this is a rectangular distribution, so the expected value is
+			// tries / n. We expect the actual value to be within 10% of that.
+			// This means that the test will randomly fail occasionally, but it
+			// should be rare.
+			expected := tries / n
+			if yes < (expected*90)/100 || yes > (expected*110)/100 {
+				t.Errorf("yes: %d, expected between %d and %d", yes, (expected*95)/100, (expected*105)/100)
+				t.Log(buckets)
+			}
+		})
 	}
 }

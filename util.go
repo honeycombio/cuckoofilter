@@ -2,18 +2,10 @@ package cuckoo
 
 import (
 	"encoding/binary"
-	"math/rand"
+	"math/bits"
 
 	metro "github.com/dgryski/go-metro"
 )
-
-// randi returns either i1 or i2 randomly.
-func randi(i1, i2 uint) uint {
-	if rand.Int31()%2 == 0 {
-		return i1
-	}
-	return i2
-}
 
 func getAltIndex(fp fingerprint, i uint, bucketIndexMask uint) uint {
 	b := make([]byte, 2)
@@ -40,13 +32,5 @@ func getIndexAndFingerprint(data []byte, bucketIndexMask uint) (uint, fingerprin
 }
 
 func getNextPow2(n uint64) uint {
-	n--
-	n |= n >> 1
-	n |= n >> 2
-	n |= n >> 4
-	n |= n >> 8
-	n |= n >> 16
-	n |= n >> 32
-	n++
-	return uint(n)
+	return uint(1 << bits.Len64(n-1))
 }

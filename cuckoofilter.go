@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"math/rand"
+	"time"
+
+	"github.com/dgryski/go-wyhash"
 )
 
 // maxCuckooKickouts is the maximum number of times reinsert
@@ -18,6 +20,9 @@ type Filter struct {
 	// Bit mask set to len(buckets) - 1. As len(buckets) is always a power of 2,
 	// applying this mask mimics the operation x % len(buckets).
 	bucketIndexMask uint
+	// rng is a simple pseudo-random number generator that we store locally
+	// so that we don't have to spend time locking the global RNG.
+	rng *wyhash.Rng
 }
 
 // NewFilter returns a new cuckoofilter suitable for the given number of elements.
@@ -33,10 +38,12 @@ func NewFilter(numElements uint) *Filter {
 		numBuckets = 1
 	}
 	buckets := make([]bucket, numBuckets)
+	rng := wyhash.Rng(time.Now().UnixNano())
 	return &Filter{
 		buckets:         buckets,
 		count:           0,
 		bucketIndexMask: uint(len(buckets) - 1),
+		rng:             &rng,
 	}
 }
 
@@ -72,7 +79,24 @@ func (cf *Filter) Insert(data []byte) bool {
 	if cf.insert(fp, i2) {
 		return true
 	}
-	return cf.reinsert(fp, randi(i1, i2))
+	return cf.reinsert(fp, cf.Coinflip(i1, i2))
+}
+
+// this isn't perfectly uniform, but it's good enough for our purposes since
+// n is on the order of 10^6 and our rng is 63 bits (10^19); this means the
+// bias is on the order of 10^-13. For our use case, that's well below the
+// noise floor.
+func (cf *Filter) Intn(n int) int {
+	// we need to make sure it's strictly positive, so mask off the sign bit
+	return int(cf.rng.Next()&0x7FFF_FFFF_FFFF_FFFF) % n
+}
+
+// Coinflip returns either i1 or i2 randomly.
+func (cf Filter) Coinflip(i1, i2 uint) uint {
+	if cf.rng.Next()&0x1 == 0 {
+		return i1
+	}
+	return i2
 }
 
 func (cf *Filter) insert(fp fingerprint, i uint) bool {
@@ -85,7 +109,7 @@ func (cf *Filter) insert(fp fingerprint, i uint) bool {
 
 func (cf *Filter) reinsert(fp fingerprint, i uint) bool {
 	for k := 0; k < maxCuckooKickouts; k++ {
-		j := rand.Intn(bucketSize)
+		j := cf.Intn(bucketSize)
 		// Swap fingerprint with bucket entry.
 		cf.buckets[i][j], fp = fp, cf.buckets[i][j]
 

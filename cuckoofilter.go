@@ -82,16 +82,18 @@ func (cf *Filter) Insert(data []byte) bool {
 	return cf.reinsert(fp, cf.Coinflip(i1, i2))
 }
 
-// this isn't perfectly uniform, but it's good enough for our purposes since
-// n is on the order of 10^6 and our rng is 63 bits (10^19); this means the
-// bias is on the order of 10^-13. For our use case, that's well below the
-// noise floor.
+// Using % isn't *perfectly* uniform, but it really only matters when n is a
+// significant fraction of the rng's range. It's more than good enough for our
+// purposes since n is on the order of 10^6 and our rng is 63 bits (10^19); this
+// means the bias is on the order of 10^-13. For our use case, that's well below
+// the noise floor.
 func (cf *Filter) Intn(n int) int {
 	// we need to make sure it's strictly positive, so mask off the sign bit
 	return int(cf.rng.Next()&0x7FFF_FFFF_FFFF_FFFF) % n
 }
 
-// Coinflip returns either i1 or i2 randomly.
+// Coinflip returns either i1 or i2 randomly by examining the least significant
+// bit of the RNG.
 func (cf Filter) Coinflip(i1, i2 uint) uint {
 	if cf.rng.Next()&0x1 == 0 {
 		return i1

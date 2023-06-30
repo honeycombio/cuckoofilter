@@ -250,7 +250,7 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
-func TestFilter_randi(t *testing.T) {
+func TestFilter_Coinflip(t *testing.T) {
 	cf := NewFilter(8)
 	yes := 0
 	for i := 0; i < 1000000; i++ {
@@ -258,6 +258,7 @@ func TestFilter_randi(t *testing.T) {
 			yes++
 		}
 	}
+	// See below -- we're checking that we're within 1% of the expected value.
 	if yes < 499000 || yes > 501000 {
 		t.Errorf("yes: %d, expected 500000", yes)
 	}
